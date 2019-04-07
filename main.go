@@ -61,30 +61,30 @@ const sqlCreateTable = `CREATE TABLE IF NOT EXISTS episodes
 	(pubdate,
 	len integer,
 	title,
-	itunes_author,
-	itunes_subtitle,
-	itunes_summary,
-	itunes_image,
+	author,
+	subtitle,
+	summary,
+	image,
 	url PRIMARY KEY,
 	type,
 	guid,
 	description,
-	itunes_duration,
-	itunes_explicit);`
+	duration,
+	explicit);`
 
 const sqlInsert = `INSERT OR REPLACE INTO episodes (pubdate,
 	len,
 	title,
-	itunes_author,
-	itunes_subtitle,
-	itunes_summary,
-	itunes_image,
+	author,
+	subtitle,
+	summary,
+	image,
 	url,
 	type,
 	guid,
 	description,
-	itunes_duration,
-	itunes_explicit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	duration,
+	explicit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 var db *sql.DB
 var inserter *sql.Stmt
@@ -149,7 +149,7 @@ func loadMetadata() {
 			url string
 		)
 
-		row = db.QueryRow("SELECT url FROM episodes WHERE itunes_duration = \"\"")
+		row = db.QueryRow("SELECT url FROM episodes WHERE duration = \"\"")
 		row.Scan(&url)
 		/*
 			out, _ := os.Create("/tmp/kih.mp3")
@@ -248,9 +248,8 @@ func makeRSS() {
 	)
 
 	rows, _ = db.Query(`SELECT
-		pubdate, len, title, itunes_author, itunes_subtitle,
-		itunes_summary, itunes_image, url, type, guid, description,
-		itunes_duration, itunes_explicit
+		pubdate, len, title, author, subtitle, summary, image, url, type, guid,
+		description, duration, explicit
 	  FROM episodes ORDER BY pubdate DESC`)
 	defer rows.Close()
 
