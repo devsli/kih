@@ -201,6 +201,28 @@ func loadHistory() {
 	}
 }
 
+func prune() {
+	var (
+		url string
+		rows *sql.Rows
+	)
+
+	rows, _ = db.Query("SELECT url FROM episodes ORDER BY pubdate DESC")
+	defer rows.Close()
+	for rows.Next() {
+		if err := rows.Scan(&url); err != nil {
+			log.Fatal(err)
+		}
+
+		result, _ := http.Head(url)
+
+		if result.StatusCode == 404 {
+			db.Exec("DELETE FROM episodes WHERE url = ?", url)
+			log.Printf("%s was removed from the server", url)
+		}
+	}
+}
+
 func usage() {
 	println("Usage:")
 	println("kih [fetch|sync|help]")
@@ -280,6 +302,8 @@ func main() {
 		makeRSS()
 	case "id3":
 		loadMetadata()
+	case "prune":
+		prune()
 	default:
 		usage()
 	}
