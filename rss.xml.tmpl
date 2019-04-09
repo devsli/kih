@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0"
+	 xmlns:atom="http://www.w3.org/2005/Atom"
+	 xmlns:googleplay="http://www.google.com/schemas/play-podcasts/1.0">
+	<channel>
+	<title>{{ .Title }}</title>
+	<link>{{ .Link }}</link>
+	<language>{{ .Language }}</language>
+	<copyright>Radio Record Russia</copyright>
+	<atom:link href="http://www.radiorecord.ru/rss.xml" rel="self" type="application/rss+xml" />
+	<itunes:subtitle>{{ .Subtitle }}</itunes:subtitle>
+	<itunes:author>{{ .Author }}</itunes:author>
+	<googleplay:author>{{ .Author }}</googleplay:author>
+	<itunes:summary>{{ .Description }}</itunes:summary>
+	<description>{{ .Description }}</description>
+	<itunes:owner>
+		<itunes:name>{{ .Owner.Name }}</itunes:name>
+		<itunes:email>{{ .Owner.Email }}</itunes:email>
+	</itunes:owner>
+	<itunes:image href="{{ .Image.Href }}" />
+	<googleplay:image href="{{ .Image.Href }}"/>
+	<itunes:category text="{{ .Category.Text }}"/>
+	<googleplay:category text="{{ .Category.Text }}"/>
+	<itunes:explicit>clean</itunes:explicit>
+	{{ range .Items -}}
+	<item>
+		<title>{{ .Title }}</title>
+		<itunes:author>{{ .Author }}</itunes:author>
+		<itunes:subtitle>{{ .Subtitle }}</itunes:subtitle>
+		<itunes:summary>{{ .Summary }}</itunes:summary>
+		<itunes:image href="{{ .Image.Href }}" />
+		<enclosure url="{{ .Enclosure.Url }}" length="{{ .Enclosure.Length }}" type="{{ .Enclosure.Type }}" />
+		<guid>{{ .Enclosure.Url }}</guid>
+		<pubDate>{{ .PubDate.Value.Format "Mon, 02 Jan 2006 15:04:05 MST" }}</pubDate>
+		<description>{{ .Description }}</description>
+		<itunes:duration>{{ .Duration }}</itunes:duration>
+		<itunes:explicit>clean</itunes:explicit>
+	</item>
+	{{- end }}
+	</channel>
+</rss>

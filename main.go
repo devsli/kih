@@ -14,49 +14,23 @@ import (
 	"github.com/nandosousafr/podfeed"
 )
 
-const castURL = "http://78.140.251.40/tmp_audio/itunes2/hik_-_rr_%s.mp3"
-const rssTpl = `<?xml version="1.0" encoding="UTF-8"?>
-<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0"
-	 xmlns:atom="http://www.w3.org/2005/Atom"
-	 xmlns:googleplay="http://www.google.com/schemas/play-podcasts/1.0">
-	<channel>
-	<title>Radio Record / Кремов и Хрусталев</title>
-	<link>http://www.radiorecord.ru</link>
-	<language>ru-ru</language>
-	<copyright>Radio Record Russia</copyright>
-	<atom:link href="http://www.radiorecord.ru/rss.xml" rel="self" type="application/rss+xml" />
-	<itunes:subtitle>Radio Record</itunes:subtitle>
-	<itunes:author>www.radiorecord.ru</itunes:author>
-	<googleplay:author>www.radiorecord.ru</googleplay:author>
-	<itunes:summary>Программы Радио Рекорд</itunes:summary>
-	<description>Программы Радио Рекорд</description>
-	<itunes:owner>
-		<itunes:name>Marsel Markhabulin</itunes:name>
-		<itunes:email>milar@marsell.ws</itunes:email>
-	</itunes:owner>
-	<itunes:image href="http://www.radiorecord.ru/upload/iblock/0dd/0ddd4f32b459515dde4ad7e7b5e5fd30.jpg" />
-	<googleplay:image href="http://www.radiorecord.ru/upload/iblock/0dd/0ddd4f32b459515dde4ad7e7b5e5fd30.jpg"/>
-	<itunes:category text="Comedy"/>
-	<googleplay:category text="Comedy"/>
-	<itunes:explicit>clean</itunes:explicit>
-	{{ range .Items -}}
-	<item>
-		<title>{{ .Title }}</title>
-		<itunes:author>{{ .Author }}</itunes:author>
-		<itunes:subtitle>{{ .Subtitle }}</itunes:subtitle>
-		<itunes:summary>{{ .Summary }}</itunes:summary>
-		<itunes:image href="{{ .Image.Href }}" />
-		<enclosure url="{{ .Enclosure.Url }}" length="{{ .Enclosure.Length }}" type="{{ .Enclosure.Type }}" />
-		<guid>{{ .Enclosure.Url }}</guid>
-		<pubDate>{{ .PubDate.Value.Format "Mon, 02 Jan 2006 15:04:05 MST" }}</pubDate>
-		<description>{{ .Description }}</description>
-		<itunes:duration>{{ .Duration }}</itunes:duration>
-		<itunes:explicit>clean</itunes:explicit>
-	</item>
-	{{- end }}
-	</channel>
-</rss>`
+type episodeRow struct {
+	pubdate     string
+	size        uint64
+	title       string
+	author      string
+	subtitle    string
+	summary     string
+	image       string
+	url         string
+	mimeType    string
+	guid        string
+	description string
+	duration    string
+	explicit    string
+}
 
+const castURL = "http://78.140.251.40/tmp_audio/itunes2/hik_-_rr_%s.mp3"
 const sqlCreateTable = `CREATE TABLE IF NOT EXISTS episodes
 	(pubdate,
 	len integer,
@@ -142,33 +116,6 @@ func responseToPodfeed(url string, resp *http.Response) podfeed.Item {
 			Href: "http://www.radiorecord.ru/upload/iblock/0dd/0ddd4f32b459515dde4ad7e7b5e5fd30.jpg"}}
 }
 
-func loadMetadata() {
-	/*
-		var (
-			row *sql.Row
-			url string
-		)
-
-		row = db.QueryRow("SELECT url FROM episodes WHERE duration = \"\"")
-		row.Scan(&url)
-		/*
-			out, _ := os.Create("/tmp/kih.mp3")
-			defer os.Remove("/tmp/kih.mp3")
-			defer out.Close()
-
-			resp, err := http.Get(url)
-			check(err)
-			defer resp.Body.Close()
-	*/
-	/*
-		log.Printf("Processing %s", url)
-		// io.Copy(out, resp.Body)
-		metadata, err := audio.Identify("/tmp/kih.mp3")
-		check(err)
-		log.Printf("Meta %#v", metadata.String())
-	*/
-}
-
 func sqlDate(str string) time.Time {
 	result, err := time.Parse(time.RFC3339, strings.Replace(str, " ", "T", 1))
 	check(err)
@@ -196,14 +143,14 @@ func loadHistory() {
 		if result.StatusCode != 404 {
 			_, err := saveItem(responseToPodfeed(url, result))
 			check(err)
-			fmt.Println(url)
+			log.Printf("[+] %s", url)
 		}
 	}
 }
 
 func prune() {
 	var (
-		url string
+		url  string
 		rows *sql.Rows
 	)
 
@@ -218,7 +165,7 @@ func prune() {
 
 		if result.StatusCode == 404 {
 			db.Exec("DELETE FROM episodes WHERE url = ?", url)
-			log.Printf("%s was removed from the server", url)
+			log.Printf("[-] %s", url)
 		}
 	}
 }
@@ -228,23 +175,25 @@ func usage() {
 	println("kih [fetch|sync|help]")
 }
 
-func makeRSS() {
+func rowToItem(e episodeRow) podfeed.Item {
+	return podfeed.Item{
+		Title:    e.title,
+		PubDate:  podfeed.Time{Value: sqlDate(e.pubdate)},
+		Link:     e.url,
+		Author:   e.author,
+		Image:    podfeed.Image{Href: e.image},
+		Duration: e.duration,
+
+		Enclosure: podfeed.Enclosure{
+			Length: e.size,
+			Url:    e.url,
+			Type:   e.mimeType}}
+}
+
+func makeRSS(podcast podfeed.Podcast) {
 	var (
-		pubdate     string
-		size        uint64
-		title       string
-		author      string
-		subtitle    string
-		summary     string
-		image       string
-		url         string
-		typ         string
-		guid        string
-		description string
-		duration    string
-		explicit    string
-		items       []podfeed.Item
-		rows        *sql.Rows
+		e    episodeRow
+		rows *sql.Rows
 	)
 
 	rows, _ = db.Query(`SELECT
@@ -254,28 +203,19 @@ func makeRSS() {
 	defer rows.Close()
 
 	for rows.Next() {
-		if err := rows.Scan(&pubdate, &size, &title, &author, &subtitle,
-			&summary, &image, &url, &typ, &guid,
-			&description, &duration, &explicit); err != nil {
+		if err := rows.Scan(&e.pubdate, &e.size, &e.title, &e.author,
+			&e.subtitle, &e.summary, &e.image, &e.url, &e.mimeType, &e.guid,
+			&e.description, &e.duration, &e.explicit); err != nil {
 			log.Fatal(err)
 		}
 
-		items = append(items, podfeed.Item{
-			Title:    title,
-			PubDate:  podfeed.Time{Value: sqlDate(pubdate)},
-			Link:     url,
-			Author:   author,
-			Image:    podfeed.Image{Href: image},
-			Duration: duration,
-
-			Enclosure: podfeed.Enclosure{
-				Length: size,
-				Url:    url,
-				Type:   typ}})
+		podcast.Items = append(podcast.Items, rowToItem(e))
 	}
 
-	t, _ := template.New("webpage").Parse(rssTpl)
-	_ = t.Execute(os.Stdout, podfeed.Podcast{Items: items})
+	t, err := template.New("rss.xml.tmpl").ParseFiles("rss.xml.tmpl")
+	check(err)
+	err = t.Execute(os.Stdout, podcast)
+	check(err)
 }
 
 func init() {
@@ -298,11 +238,26 @@ func main() {
 	case "sync":
 		sync()
 	case "rss":
-		makeRSS()
-	case "id3":
-		loadMetadata()
+		fields := podfeed.Podcast{
+			Author:      "www.radiorecord.ru",
+			Category:    podfeed.Category{Text: "Comedy"},
+			Description: "Программы Радио Рекорд",
+			Image:       podfeed.Image{Href: "http://www.radiorecord.ru/upload/iblock/0dd/0ddd4f32b459515dde4ad7e7b5e5fd30.jpg"},
+			Language:    "ru-ru",
+			Link:        "http://kih.suprun.pw",
+			Owner:       podfeed.Owner{Name: "Marsel Markhabulin", Email: "milar@marsell.ws"},
+			Subtitle:    "Radio Record",
+			Title:       "Radio Record / Кремов и Хрусталев"}
+
+		makeRSS(fields)
 	case "prune":
 		prune()
+	case "update":
+		prune()
+		fallthrough
+	case "init":
+		loadHistory()
+		sync()
 	default:
 		usage()
 	}
