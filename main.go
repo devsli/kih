@@ -151,16 +151,20 @@ func loadHistory() {
 func prune() {
 	var (
 		url  string
+		urls []string
 		rows *sql.Rows
 	)
 
 	rows, _ = db.Query("SELECT url FROM episodes ORDER BY pubdate DESC")
-	defer rows.Close()
 	for rows.Next() {
 		if err := rows.Scan(&url); err != nil {
 			log.Fatal(err)
 		}
+		urls = append(urls, url)
+	}
+	rows.Close()
 
+	for _, url = range urls {
 		result, _ := http.Head(url)
 
 		if result.StatusCode == 404 {
