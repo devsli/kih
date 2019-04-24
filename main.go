@@ -151,7 +151,6 @@ func loadHistory() {
 func prune() {
 	var (
 		url  string
-		urls []string
 		rows *sql.Rows
 	)
 
@@ -160,18 +159,14 @@ func prune() {
 		if err := rows.Scan(&url); err != nil {
 			log.Fatal(err)
 		}
-		urls = append(urls, url)
-	}
-	rows.Close()
-
-	for _, url = range urls {
 		result, _ := http.Head(url)
 
 		if result.StatusCode == 404 {
-			db.Exec("DELETE FROM episodes WHERE url = ?", url)
-			log.Printf("[-] %s", url)
+			defer db.Exec("DELETE FROM episodes WHERE url = ?", url)
+			defer log.Printf("[-] %s", url)
 		}
 	}
+	rows.Close()
 }
 
 func usage() {
